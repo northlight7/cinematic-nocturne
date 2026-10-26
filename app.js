@@ -1,16 +1,16 @@
-import {T,mat,mesh,box,cyl,ring,texture,createStage,cameraAt,span,mix,initUI} from './core.js'
+import {T,mat,mesh,box,cyl,ring,texture,createStage,cameraAt,span,mix,initUI} from './core.js?v=composition-8'
 initUI()
-const s=createStage({background:'#240f18',exposure:1.15}),{scene,camera}=s
-scene.fog=new T.Fog('#240f18',16,38);s.ground.material.color.set('#090207');s.key.color.set('#ffb983');s.key.intensity=5.2;s.key.position.set(-4,7,5);s.fill.color.set('#f5bbce');s.fill.intensity=1.3
+const s=createStage({background:'#240f18',exposure:.92}),{scene,camera}=s
+scene.fog=new T.Fog('#240f18',16,38);s.ground.material.color.set('#090207');s.key.color.set('#ffb983');s.key.intensity=3.6;s.key.position.set(-4,7,5);s.fill.color.set('#f5bbce');s.fill.intensity=1.3
 scene.environmentIntensity=.65
 const product=new T.Group();scene.add(product);product.rotation.y=-.12
-const gold=mat('#d6a35c',.25,.85),capMat=mat('#201a1b',.18,.45,{envMapIntensity:1.3}),glass=new T.MeshPhysicalMaterial({color:'#e6a15b',roughness:.12,transmission:.78,thickness:.28,ior:1.47,metalness:0,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1.2})
+const gold=mat('#d6a35c',.25,.85),capMat=mat('#201a1b',.18,.45,{envMapIntensity:1.3}),glass=new T.MeshPhysicalMaterial({color:'#c38342',roughness:.12,transmission:.78,thickness:.28,ior:1.47,metalness:0,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1.2})
 const profile=[[0,0],[.58,0],[.78,.06],[.87,.2],[.87,2.1],[.82,2.32],[.7,2.46],[.36,2.63],[.25,2.72],[.25,2.94],[0,2.94]].map(p=>new T.Vector2(...p))
 const bodyGeo=new T.LatheGeometry(profile,96)
 const coords=bodyGeo.attributes.position
 for(let i=0;i<coords.count;i++){const x=coords.getX(i),y=coords.getY(i),z=coords.getZ(i),r=Math.hypot(x,z);if(r>.72&&y>.12&&y<2.35){const a=Math.atan2(z,x),f=1+Math.cos(a*40)*.008;coords.setXYZ(i,x*f,y,z*f)}}bodyGeo.computeVertexNormals()
 const bottle=mesh(bodyGeo,glass,product,[0,-.17,0]);
-const liquidMat=new T.MeshPhysicalMaterial({color:'#bf6a22',roughness:.1,transmission:.3,thickness:.7,ior:1.35,transparent:true,opacity:.86})
+const liquidMat=new T.MeshPhysicalMaterial({color:'#8f4015',roughness:.1,transmission:.3,thickness:.7,ior:1.35,transparent:true,opacity:.7})
 cyl(.765,1.82,liquidMat,product,[0,.96,0]);cyl(.76,.025,mat('#d98938',.22,.2),product,[0,1.89,0]);
 ring(.7,.025,gold,product,[0,-.12,0]);ring(.83,.009,gold,product,[0,.05,0])
 cyl(.27,.18,gold,product,[0,2.74,0]);cyl(.19,.24,gold,product,[0,2.94,0]);const atomizer=cyl(.24,.17,gold,product,[0,3.12,0]);const hole=cyl(.036,.015,mat('#110b09',1),product,[0,3.12,.238]);hole.rotation.x=Math.PI/2
@@ -34,9 +34,9 @@ let currentTime=0,sprayAt=-100,burst=0,note='Rose'
 function spray(){sprayAt=currentTime;document.querySelector('[data-spray-state]').textContent='A trace of '+note.toLowerCase()+', suspended in the air.';s.wake()}
 document.querySelectorAll('[data-spray]').forEach(b=>b.addEventListener('click',spray))
 document.querySelectorAll('[data-note]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-note]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));note=b.dataset.note;document.querySelector('[data-note-description]').textContent={Rose:'Velvet petals. A soft, floral heart.',Bergamot:'Bright peel. A green, unexpected opening.',Cedar:'Dry wood. A quiet, lasting warmth.'}[note];petalMats.forEach((m,i)=>m.color.set({Rose:['#a92b4b','#d3697b','#dc9b8e','#892943'],Bergamot:['#8d8b34','#b4a954','#dec275','#737637'],Cedar:['#965742','#b37e5c','#ca9a73','#724a3d']}[note][i]));s.wake()}))
-const shots=[{p:0,pos:[2.8,5.2,12.4],target:[0,3.55,0],mobile:[3.2,5.5,14.2],mobileTarget:[0,3.6,0]},{p:.33,pos:[-4.4,7.2,10.8],target:[2.3,2,0],mobile:[-5,8.5,16],mobileTarget:[0,5.1,0]},{p:.67,pos:[3,.9,7.2],target:[-1.7,1.7,0],mobile:[4,2.3,14],mobileTarget:[0,4.2,0]},{p:1,pos:[-2.4,3.1,8],target:[1.65,1.7,0],mobile:[-3,5,14],mobileTarget:[0,4.5,0]}]
+const shots=[{p:0,pos:[2.8,5.5,10.5],target:[0,1.8,0],frame:[.73,.57],mobile:[2.8,5.2,15.2],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:.33,pos:[1.8,4.4,10.3],target:[0,1.8,0],frame:[.73,.57],mobile:[2,4.9,15.1],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:.67,pos:[.8,2.9,9.7],target:[0,1.8,0],frame:[.73,.57],mobile:[1,4.2,15],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:1,pos:[-.2,2.4,9.1],target:[0,1.8,0],frame:[.73,.57],mobile:[0,3.7,14.8],mobileTarget:[0,2,0],mobileFrame:[.5,.73]}]
 s.update(({p,time,dt,mobile,pointer,activeMotion})=>{currentTime=time;cameraAt(camera,p,shots,mobile,pointer)
- const open=span(p,.1,.28);cap.position.set(open*(mobile?1.2:-.8),3.35+open*(mobile?1:1.35),-open*.2);cap.rotation.z=-open*.3;cap.rotation.x=open*.12;product.rotation.y=-.12+span(p,.4,.7)*.9-span(p,.75,1)*.5
+ const open=span(p,.1,.28);cap.position.set(open*.65,3.35+open*(mobile?.45:.75),-open*.2);cap.rotation.z=-open*.3;cap.rotation.x=open*.12;product.rotation.y=-.12
  const gather=span(p,.12,.37),release=span(p,.38,.72)
  petals.forEach((o,i)=>{const a=o.userData.phase+(activeMotion?time*.14:0)+p*3.2,r=o.userData.radius*(1-gather*.35+release*.5),y=1.7+Math.sin(a*.7+i)*1.8+(gather-release)*.8;o.position.set(Math.cos(a)*r+pointer.x*.2,y,Math.sin(a)*r*.65+pointer.y*.2);o.rotation.set(a*.7+time*.15,a+i,a*.3);o.material.emissive.set('#2b0810');o.material.emissiveIntensity=.15;const heroVisibility=mix(.6,1,gather);o.scale.setScalar((.3+(i%5)*.12)*heroVisibility);o.updateMatrix();petalInstances[i%4].setMatrixAt(Math.floor(i/4),o.matrix)});petalInstances.forEach(im=>im.instanceMatrix.needsUpdate=true)
  citrus.rotation.y=p*2.4+time*.035;citrus.visible=p>.12&&p<.74;citrus.position.y=Math.sin(p*Math.PI)*.5

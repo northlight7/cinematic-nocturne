@@ -14,12 +14,20 @@ export function ring(r,t,m,parent,pos=[0,0,0]){const o=mesh(new T.TorusGeometry(
 export function texture(draw,w=512,h=512){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t}
 export function noiseTexture(base,grain=15){return texture((c,w,h)=>{c.fillStyle=base;c.fillRect(0,0,w,h);let seed=7548;for(let i=0;i<16000;i++){seed=(seed*16807)%2147483647;const x=seed%w;seed=(seed*16807)%2147483647;const y=seed%h;const v=(i%2)?255:0;c.fillStyle=`rgba(${v},${v},${v},${grain/255})`;c.fillRect(x,y,1,1)}})}
 export function tube(points,r,m,parent){return mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),40,r,12,false),m,parent)}
-export function cameraAt(camera,p,shots,mobile=false,pointer={x:0,y:0}){
+// A single C1 camera rig. Shared tangents preserve travel through chapter boundaries.
+function sample(shots,p,key,mobileKey,mobile){
  let k=0;while(k<shots.length-2&&p>shots[k+1].p)k++
- const a=shots[k],b=shots[k+1],t=ease((p-a.p)/(b.p-a.p));const ap=mobile&&a.mobile?a.mobile:a.pos,bp=mobile&&b.mobile?b.mobile:b.pos
- camera.position.set(...ap.map((v,i)=>mix(v,bp[i],t)));camera.position.x+=pointer.x*.22;camera.position.y+=pointer.y*.14
- const at=mobile&&a.mobileTarget?a.mobileTarget:a.target,bt=mobile&&b.mobileTarget?b.mobileTarget:b.target
- camera.lookAt(...at.map((v,i)=>mix(v,bt[i],t)))
+ const a=shots[k],b=shots[k+1],prev=shots[Math.max(0,k-1)],next=shots[Math.min(shots.length-1,k+2)],duration=b.p-a.p,t=clamp((p-a.p)/duration)
+ const read=s=>mobile&&s[mobileKey]?s[mobileKey]:s[key],av=read(a),bv=read(b),pv=read(prev),nv=read(next)
+ return av.map((v,i)=>{let m0=(bv[i]-pv[i])/(b.p-prev.p),m1=(nv[i]-v)/(next.p-a.p);if(key==='frame'){if((v-pv[i])*(bv[i]-v)<=0)m0=0;if((bv[i]-v)*(nv[i]-bv[i])<=0)m1=0}return (2*t*t*t-3*t*t+1)*v+(t*t*t-2*t*t+t)*duration*m0+(-2*t*t*t+3*t*t)*bv[i]+(t*t*t-t*t)*duration*m1})
+}
+export function cameraAt(camera,p,shots,mobile=false,pointer={x:0,y:0}){
+ const pos=sample(shots,p,'pos','mobile',mobile),target=sample(shots,p,'target','mobileTarget',mobile),frame=sample(shots,p,'frame','mobileFrame',mobile)
+ camera.position.set(pos[0]+pointer.x*.045,pos[1]+pointer.y*.03,pos[2]);camera.lookAt(...target)
+ const w=innerWidth,h=innerHeight;camera.setViewOffset(w,h,(.5-frame[0])*w,(.5-frame[1])*h,w,h)
+ camera.updateMatrixWorld()
+ const anchor=new T.Vector3(...target).project(camera),host=document.querySelector('.stage')
+ host.dataset.anchor=[(anchor.x+1)/2,(1-anchor.y)/2].map(v=>v.toFixed(4)).join(',')
 }
 export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow=true}){
  const host=document.querySelector('.stage'),story=document.querySelector('.story'),canvas=document.querySelector('#world')
@@ -27,25 +35,26 @@ export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow
  try{renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'})}catch(error){document.body.classList.add('no-webgl');document.querySelector('.render-status').textContent='Static view · 3D unavailable';throw error}
  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=exposure
  renderer.shadowMap.enabled=shadow;renderer.shadowMap.type=T.PCFShadowMap
- const scene=new T.Scene();scene.background=new T.Color(background)
- const camera=new T.PerspectiveCamera(36,innerWidth/innerHeight,.05,150);camera.zoom=innerWidth>=700&&innerWidth<1050?.74:1;camera.updateProjectionMatrix()
+ const scene=new T.Scene();renderer.setClearColor(background,0)
+ const camera=new T.PerspectiveCamera(innerWidth<1050?42:36,innerWidth/innerHeight,.05,150)
  const pmrem=new T.PMREMGenerator(renderer),envScene=new RoomEnvironment(),env=pmrem.fromScene(envScene,.04);scene.environment=env.texture;envScene.dispose();pmrem.dispose()
  const key=new T.DirectionalLight('#fff0dc',4.2);key.position.set(-3,8,5);key.castShadow=shadow;key.shadow.mapSize.set(1024,1024);key.shadow.camera.left=-9;key.shadow.camera.right=9;key.shadow.camera.top=9;key.shadow.camera.bottom=-9;key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key)
  const fill=new T.DirectionalLight('#d2e4ff',1.3);fill.position.set(5,2,-4);scene.add(fill);scene.add(new T.HemisphereLight('#ffffff','#3f302a',1.1))
- const ground=mesh(new T.PlaneGeometry(200,200),mat(background,.95),scene,[0,-.39,0]);ground.rotation.x=-Math.PI/2;ground.castShadow=false;ground.visible=floor
+ const ground=mesh(new T.PlaneGeometry(200,200),new T.ShadowMaterial({opacity:.14}),scene,[0,-.39,0]);ground.rotation.x=-Math.PI/2;ground.castShadow=false;ground.visible=floor
  const pointer={x:0,y:0},look={x:0,y:0};let targetP=0,p=0,time=0,last=0,raf=0,paused=false,visible=true,renderStep=()=>{},frames=[],lastStats=0,contextLost=false,initialized=false
+ const inspect=new URLSearchParams(location.search).get('inspect')==='path';document.body.classList.toggle('path-inspection',inspect)
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');let reducedMotion=reduced.matches;document.body.classList.toggle('motion-off',reducedMotion)
  const motion=document.querySelector('[data-motion]');if(motion){motion.setAttribute('aria-pressed',String(reducedMotion));motion.textContent=reducedMotion?'Motion off':'Pause motion'}
  const move=e=>{pointer.x=(e.clientX/innerWidth-.5)*2;pointer.y=-(e.clientY/innerHeight-.5)*2;const cur=document.querySelector('.cursor');if(cur){cur.style.left=e.clientX+'px';cur.style.top=e.clientY+'px';cur.dataset.active='true'}}
  const leave=()=>{pointer.x=0;pointer.y=0;const c=document.querySelector('.cursor');if(c)c.dataset.active='false'}
  const scroll=()=>{const r=story.getBoundingClientRect();targetP=clamp(-r.top/(story.offsetHeight-innerHeight));if(!initialized){p=targetP;initialized=true}visible=r.bottom>0&&r.top<innerHeight;if(visible)start()}
- const resize=()=>{renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.zoom=innerWidth>=700&&innerWidth<1050?.74:1;camera.updateProjectionMatrix();scroll();p=targetP;start()}
+ const resize=()=>{renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<1050?42:36;camera.updateProjectionMatrix();scroll();p=targetP;start()}
  const loop=stamp=>{raf=0;if(document.hidden||!visible||contextLost)return;const rawFrameMs=last?stamp-last:16.7;const dt=Math.min(rawFrameMs/1000,.05);last=stamp
   if(!paused&&!reducedMotion)time+=dt
   const activeMotion=!paused&&!reducedMotion;p=activeMotion?mix(p,targetP,1-Math.exp(-dt*12)):targetP
   look.x=mix(look.x,activeMotion?pointer.x:0,1-Math.exp(-dt*7));look.y=mix(look.y,activeMotion?pointer.y:0,1-Math.exp(-dt*7))
-  renderStep({p:reducedMotion||paused?0:p,rawProgress:targetP,time,dt,mobile:innerWidth<700,pointer:look,activeMotion})
-  renderer.render(scene,camera)
+  renderStep({p:reducedMotion||paused?0:p,rawProgress:targetP,time:inspect?0:time,dt,mobile:innerWidth<700,pointer:inspect?{x:0,y:0}:look,activeMotion:activeMotion&&!inspect})
+  host.style.setProperty('--travel',p);host.style.setProperty('--opening',1-span(p,0,.25));renderer.render(scene,camera)
   frames.push(rawFrameMs);if(frames.length>180)frames.shift()
   if(stamp-lastStats>750||!activeMotion){lastStats=stamp;host.dataset.progress=p.toFixed(3);host.dataset.camera=camera.position.toArray().map(v=>v.toFixed(2)).join(',');host.dataset.drawCalls=renderer.info.render.calls;host.dataset.triangles=renderer.info.render.triangles;host.dataset.frameMs=([...frames].sort((a,b)=>a-b)[Math.floor(frames.length*.95)]||0).toFixed(1);document.querySelectorAll('[data-chapter]').forEach((x,i)=>x.classList.toggle('is-active',Math.min(3,Math.floor(targetP*3+.18))===i));const progress=document.querySelector('.travel-progress');if(progress)progress.style.transform=`scaleX(${targetP})`}
   if(activeMotion||Math.abs(p-targetP)>.0001)start()
