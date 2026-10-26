@@ -24,19 +24,21 @@ function sample(shots,p,key,mobileKey,mobile){
 export function cameraAt(camera,p,shots,mobile=false,pointer={x:0,y:0}){
  const pos=sample(shots,p,'pos','mobile',mobile),target=sample(shots,p,'target','mobileTarget',mobile),frame=sample(shots,p,'frame','mobileFrame',mobile)
  camera.position.set(pos[0]+pointer.x*.045,pos[1]+pointer.y*.03,pos[2]);camera.lookAt(...target)
+ if(mobile&&innerWidth<360)frame[1]+=camera.userData.narrowFrameOffset||0
  const w=innerWidth,h=innerHeight;camera.setViewOffset(w,h,(.5-frame[0])*w,(.5-frame[1])*h,w,h)
  camera.updateMatrixWorld()
  const anchor=new T.Vector3(...target).project(camera),host=document.querySelector('.stage')
  host.dataset.anchor=[(anchor.x+1)/2,(1-anchor.y)/2].map(v=>v.toFixed(4)).join(',')
 }
-export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow=true}){
+export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow=true,staticProgress=0,narrowFov=42,narrowFrameOffset=0}){
  const host=document.querySelector('.stage'),story=document.querySelector('.story'),canvas=document.querySelector('#world')
  let renderer
  try{renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'})}catch(error){document.body.classList.add('no-webgl');document.querySelector('.render-status').textContent='Static view · 3D unavailable';throw error}
  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=exposure
  renderer.shadowMap.enabled=shadow;renderer.shadowMap.type=T.PCFShadowMap
  const scene=new T.Scene();renderer.setClearColor(background,0)
- const camera=new T.PerspectiveCamera(innerWidth<1050?42:36,innerWidth/innerHeight,.05,150)
+ const camera=new T.PerspectiveCamera(innerWidth<360?narrowFov:innerWidth<1050?42:36,innerWidth/innerHeight,.05,150)
+ camera.userData.narrowFrameOffset=narrowFrameOffset
  const pmrem=new T.PMREMGenerator(renderer),envScene=new RoomEnvironment(),env=pmrem.fromScene(envScene,.04);scene.environment=env.texture;envScene.dispose();pmrem.dispose()
  const key=new T.DirectionalLight('#fff0dc',4.2);key.position.set(-3,8,5);key.castShadow=shadow;key.shadow.mapSize.set(1024,1024);key.shadow.camera.left=-9;key.shadow.camera.right=9;key.shadow.camera.top=9;key.shadow.camera.bottom=-9;key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key)
  const fill=new T.DirectionalLight('#d2e4ff',1.3);fill.position.set(5,2,-4);scene.add(fill);scene.add(new T.HemisphereLight('#ffffff','#3f302a',1.1))
@@ -45,18 +47,18 @@ export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow
  const inspect=new URLSearchParams(location.search).get('inspect')==='path';document.body.classList.toggle('path-inspection',inspect)
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');let reducedMotion=reduced.matches;document.body.classList.toggle('motion-off',reducedMotion)
  const motion=document.querySelector('[data-motion]');if(motion){motion.setAttribute('aria-pressed',String(reducedMotion));motion.textContent=reducedMotion?'Motion off':'Pause motion'}
- const move=e=>{pointer.x=(e.clientX/innerWidth-.5)*2;pointer.y=-(e.clientY/innerHeight-.5)*2;const cur=document.querySelector('.cursor');if(cur){cur.style.left=e.clientX+'px';cur.style.top=e.clientY+'px';cur.dataset.active='true'}}
- const leave=()=>{pointer.x=0;pointer.y=0;const c=document.querySelector('.cursor');if(c)c.dataset.active='false'}
+ const move=e=>{pointer.x=(e.clientX/innerWidth-.5)*2;pointer.y=-(e.clientY/innerHeight-.5)*2}
+ const leave=()=>{pointer.x=0;pointer.y=0}
  const scroll=()=>{const r=story.getBoundingClientRect();targetP=clamp(-r.top/(story.offsetHeight-innerHeight));if(!initialized){p=targetP;initialized=true}visible=r.bottom>0&&r.top<innerHeight;if(visible)start()}
- const resize=()=>{renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<1050?42:36;camera.updateProjectionMatrix();scroll();p=targetP;start()}
+ const resize=()=>{renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<360?narrowFov:innerWidth<1050?42:36;camera.updateProjectionMatrix();scroll();p=targetP;start()}
  const loop=stamp=>{raf=0;if(document.hidden||!visible||contextLost)return;const rawFrameMs=last?stamp-last:16.7;const dt=Math.min(rawFrameMs/1000,.05);last=stamp
   if(!paused&&!reducedMotion)time+=dt
   const activeMotion=!paused&&!reducedMotion;p=activeMotion?mix(p,targetP,1-Math.exp(-dt*12)):targetP
   look.x=mix(look.x,activeMotion?pointer.x:0,1-Math.exp(-dt*7));look.y=mix(look.y,activeMotion?pointer.y:0,1-Math.exp(-dt*7))
-  renderStep({p:reducedMotion||paused?0:p,rawProgress:targetP,time:inspect?0:time,dt,mobile:innerWidth<700,pointer:inspect?{x:0,y:0}:look,activeMotion:activeMotion&&!inspect})
-  host.style.setProperty('--travel',p);host.style.setProperty('--opening',1-span(p,0,.25));renderer.render(scene,camera)
+  renderStep({p:reducedMotion||paused?staticProgress:p,rawProgress:targetP,time:inspect?0:time,dt,mobile:innerWidth<700,pointer:inspect?{x:0,y:0}:look,activeMotion:activeMotion&&!inspect})
+  host.dataset.progress=p.toFixed(3);host.dataset.camera=camera.position.toArray().map(v=>v.toFixed(2)).join(',');host.style.setProperty('--travel',p);host.style.setProperty('--opening',1-span(p,0,.25));renderer.render(scene,camera)
   frames.push(rawFrameMs);if(frames.length>180)frames.shift()
-  if(stamp-lastStats>750||!activeMotion){lastStats=stamp;host.dataset.progress=p.toFixed(3);host.dataset.camera=camera.position.toArray().map(v=>v.toFixed(2)).join(',');host.dataset.drawCalls=renderer.info.render.calls;host.dataset.triangles=renderer.info.render.triangles;host.dataset.frameMs=([...frames].sort((a,b)=>a-b)[Math.floor(frames.length*.95)]||0).toFixed(1);document.querySelectorAll('[data-chapter]').forEach((x,i)=>x.classList.toggle('is-active',Math.min(3,Math.floor(targetP*3+.18))===i));const progress=document.querySelector('.travel-progress');if(progress)progress.style.transform=`scaleX(${targetP})`}
+  if(stamp-lastStats>750||!activeMotion){lastStats=stamp;host.dataset.drawCalls=renderer.info.render.calls;host.dataset.triangles=renderer.info.render.triangles;host.dataset.frameMs=([...frames].sort((a,b)=>a-b)[Math.floor(frames.length*.95)]||0).toFixed(1);document.querySelectorAll('[data-chapter]').forEach((x,i)=>x.classList.toggle('is-active',Math.min(3,Math.floor(targetP*3+.18))===i));const progress=document.querySelector('.travel-progress');if(progress)progress.style.transform=`scaleX(${targetP})`}
   if(activeMotion||Math.abs(p-targetP)>.0001)start()
  }
  function start(){if(!raf&&!document.hidden&&visible&&!contextLost)raf=requestAnimationFrame(loop)}
@@ -71,7 +73,6 @@ export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow
 }
 export function initUI(){
  const dialog=document.querySelector('dialog');document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>dialog?.showModal()));document.querySelector('[data-close]')?.addEventListener('click',()=>dialog.close());dialog?.addEventListener('click',e=>{if(e.target===dialog)dialog.close()})
- document.querySelectorAll('[data-cursor]').forEach(el=>{el.addEventListener('pointerenter',()=>{const c=document.querySelector('.cursor');if(c){c.textContent=el.dataset.cursor;c.classList.add('expanded')}});el.addEventListener('pointerleave',()=>{const c=document.querySelector('.cursor');if(c){c.textContent='';c.classList.remove('expanded')}})})
  document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{document.querySelector('.nav-links')?.classList.remove('open');document.querySelector('[data-menu]')?.setAttribute('aria-expanded','false')}))
  document.querySelector('[data-menu]')?.addEventListener('click',e=>{const open=document.querySelector('.nav-links').classList.toggle('open');e.currentTarget.setAttribute('aria-expanded',String(open))})
  const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('revealed')}),{threshold:.15});document.querySelectorAll('.reveal').forEach(el=>obs.observe(el))

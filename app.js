@@ -1,6 +1,6 @@
-import {T,mat,mesh,box,cyl,ring,texture,createStage,cameraAt,span,mix,initUI} from './core.js?v=composition-8'
+import {T,mat,mesh,box,cyl,ring,texture,createStage,cameraAt,span,mix,initUI} from './core.js?v=identity-7'
 initUI()
-const s=createStage({background:'#240f18',exposure:.92}),{scene,camera}=s
+const s=createStage({staticProgress:.4,background:'#240f18',exposure:.92}),{scene,camera}=s
 scene.fog=new T.Fog('#240f18',16,38);s.ground.material.color.set('#090207');s.key.color.set('#ffb983');s.key.intensity=3.6;s.key.position.set(-4,7,5);s.fill.color.set('#f5bbce');s.fill.intensity=1.3
 scene.environmentIntensity=.65
 const product=new T.Group();scene.add(product);product.rotation.y=-.12
@@ -34,13 +34,34 @@ let currentTime=0,sprayAt=-100,burst=0,note='Rose'
 function spray(){sprayAt=currentTime;document.querySelector('[data-spray-state]').textContent='A trace of '+note.toLowerCase()+', suspended in the air.';s.wake()}
 document.querySelectorAll('[data-spray]').forEach(b=>b.addEventListener('click',spray))
 document.querySelectorAll('[data-note]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-note]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));note=b.dataset.note;document.querySelector('[data-note-description]').textContent={Rose:'Velvet petals. A soft, floral heart.',Bergamot:'Bright peel. A green, unexpected opening.',Cedar:'Dry wood. A quiet, lasting warmth.'}[note];petalMats.forEach((m,i)=>m.color.set({Rose:['#a92b4b','#d3697b','#dc9b8e','#892943'],Bergamot:['#8d8b34','#b4a954','#dec275','#737637'],Cedar:['#965742','#b37e5c','#ca9a73','#724a3d']}[note][i]));s.wake()}))
-const shots=[{p:0,pos:[2.8,5.5,10.5],target:[0,1.8,0],frame:[.73,.57],mobile:[2.8,5.2,15.2],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:.33,pos:[1.8,4.4,10.3],target:[0,1.8,0],frame:[.73,.57],mobile:[2,4.9,15.1],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:.67,pos:[.8,2.9,9.7],target:[0,1.8,0],frame:[.73,.57],mobile:[1,4.2,15],mobileTarget:[0,2,0],mobileFrame:[.5,.73]},{p:1,pos:[-.2,2.4,9.1],target:[0,1.8,0],frame:[.73,.57],mobile:[0,3.7,14.8],mobileTarget:[0,2,0],mobileFrame:[.5,.73]}]
-s.update(({p,time,dt,mobile,pointer,activeMotion})=>{currentTime=time;cameraAt(camera,p,shots,mobile,pointer)
- const open=span(p,.1,.28);cap.position.set(open*.65,3.35+open*(mobile?.45:.75),-open*.2);cap.rotation.z=-open*.3;cap.rotation.x=open*.12;product.rotation.y=-.12
- const gather=span(p,.12,.37),release=span(p,.38,.72)
- petals.forEach((o,i)=>{const a=o.userData.phase+(activeMotion?time*.14:0)+p*3.2,r=o.userData.radius*(1-gather*.35+release*.5),y=1.7+Math.sin(a*.7+i)*1.8+(gather-release)*.8;o.position.set(Math.cos(a)*r+pointer.x*.2,y,Math.sin(a)*r*.65+pointer.y*.2);o.rotation.set(a*.7+time*.15,a+i,a*.3);o.material.emissive.set('#2b0810');o.material.emissiveIntensity=.15;const heroVisibility=mix(.6,1,gather);o.scale.setScalar((.3+(i%5)*.12)*heroVisibility);o.updateMatrix();petalInstances[i%4].setMatrixAt(Math.floor(i/4),o.matrix)});petalInstances.forEach(im=>im.instanceMatrix.needsUpdate=true)
- citrus.rotation.y=p*2.4+time*.035;citrus.visible=p>.12&&p<.74;citrus.position.y=Math.sin(p*Math.PI)*.5
- const event=Math.max(0,1-(time-sprayAt)/3);burst=activeMotion?mix(burst,event,1-Math.exp(-dt*14)):event;const storyMist=span(p,.47,.6)*(1-span(p,.72,.85))*.5;const amount=Math.max(burst,storyMist);particleMat.opacity=amount*.75;atomizer.position.y=3.12-burst*.07
- for(let i=0;i<particleCount;i++){const q=(i/particleCount+time*.25)%1,a=i*2.39996,spread=q*1.5;positions[i*3]=Math.cos(a)*spread+Math.sin(time+i)*.05;positions[i*3+1]=3.05+q*.5+Math.sin(a)*spread*.4;positions[i*3+2]=.4+q*4.5}particleGeo.attributes.position.needsUpdate=true
- document.querySelector('.stage').dataset.spray=amount.toFixed(2)
+// A portrait camera lets the fragrance unfold organically around a still bottle.
+const shots=[{p:0,pos:[1.4,3.4,11.2],target:[0,1.9,0],frame:[.73,.58],mobile:[.5,3.8,16],mobileTarget:[0,2,0],mobileFrame:[.5,.74]},{p:1,pos:[1.4,3.4,10.2],target:[0,1.9,0],frame:[.73,.58],mobile:[.5,3.8,15.5],mobileTarget:[0,2,0],mobileFrame:[.5,.74]}]
+const petalRay=new T.Raycaster(),petalMouse=new T.Vector2();let hoverPetal=-1
+petalInstances.forEach((im,i)=>im.userData.petalMaterial=i)
+s.canvas.addEventListener('pointermove',e=>{petalMouse.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);petalRay.setFromCamera(petalMouse,camera);const h=petalRay.intersectObjects(petalInstances,false)[0];hoverPetal=h?h.instanceId*4+h.object.userData.petalMaterial:-1;s.host.dataset.hoverPetal=String(hoverPetal);s.wake()})
+s.canvas.addEventListener('pointerleave',()=>{hoverPetal=-1;s.host.dataset.hoverPetal='-1';s.wake()})
+const scentLines=[]
+for(let j=0;j<3;j++){const pts=[];for(let i=0;i<90;i++){const q=i/89,a=q*Math.PI*3.8+j*.12;pts.push(new T.Vector3(Math.sin(a)*(1.5+j*.05),.15+q*3.8,Math.cos(a)*.95-.1))}const geo=new T.BufferGeometry().setFromPoints(pts),m=new T.LineBasicMaterial({color:'#d6a979',transparent:true,opacity:0});const line=new T.Line(geo,m);scene.add(line);scentLines.push(line)}
+s.update(({p,time,dt,mobile,activeMotion})=>{
+ currentTime=time;cameraAt(camera,p,shots,mobile)
+ const uncap=span(p,.035,.16)
+ cap.position.set(uncap*1.58,mix(3.35,.05,uncap)+Math.sin(uncap*Math.PI)*.55,uncap*.5);cap.rotation.z=-uncap*Math.PI/2;cap.rotation.x=0;product.rotation.y=-.12
+ const event=Math.max(0,1-(time-sprayAt)/3);burst=activeMotion?mix(burst,event,1-Math.exp(-dt*14)):event
+ const unfurl=span(p,.5,.84)
+ petals.forEach((o,i)=>{
+  const layer=Math.floor(i/7),a=(i%7)/7*Math.PI*2+layer*.47,open=.2+.8*span(p,.09+layer*.018,.3+layer*.018),r=(.55+layer*.18)*open
+  const bloom=new T.Vector3(-Math.sin(a)*r,2.3+Math.cos(a)*r,-.7+layer*.065)
+  const q=i/41,spiral=q*Math.PI*4.4+span(p,.5,1)*1.2,ribbon=new T.Vector3(Math.sin(spiral)*(1.35+burst*.45),.1+q*3.9,Math.cos(spiral)*1.0+.1)
+  o.position.copy(bloom.lerp(ribbon,unfurl));const touch=i===hoverPetal?.22:0
+  o.position.x+=Math.sin(a)*touch;o.position.z+=touch
+  o.rotation.set(mix((1-open)*1.35-.35,spiral*.3,unfurl)-touch,a*.07, mix(a,spiral-.6,unfurl))
+  const breath=activeMotion?Math.sin(time*.35+a)*.015:0;o.rotation.x+=breath
+  o.scale.set(.9,mix(.55+open*(.7+layer*.08),.5+(i%5)*.1,unfurl),1)
+  o.material.emissive.set('#2b0810');o.material.emissiveIntensity=.12;o.updateMatrix();petalInstances[i%4].setMatrixAt(Math.floor(i/4),o.matrix)
+ });petalInstances.forEach(im=>{im.instanceMatrix.needsUpdate=true;im.computeBoundingSphere()})
+ citrus.visible=p>.14&&p<.5;citrus.rotation.y=.15;citrus.position.y=span(p,.14,.35)*.35;citrus.scale.setScalar(span(p,.14,.23)*(1-span(p,.42,.5)))
+ for(const line of scentLines){line.geometry.setDrawRange(0,Math.max(2,Math.floor(unfurl*90)));line.material.opacity=unfurl*.17}
+ const amount=Math.max(burst,span(p,.75,.95)*.14);particleMat.opacity=amount*.65;atomizer.position.y=3.12-burst*.07
+ for(let i=0;i<particleCount;i++){const q=(i/particleCount+time*.2)%1,a=i*2.39996+q*6,spread=q*1.05;positions[i*3]=Math.cos(a)*spread*.5;positions[i*3+1]=3.05+q*1.7;positions[i*3+2]=.25+q*1.4+Math.sin(a)*spread*.3}particleGeo.attributes.position.needsUpdate=true
+ s.host.dataset.bloom=(.2+.8*span(p,.09,.39)).toFixed(2);s.host.dataset.unfurl=unfurl.toFixed(2);s.host.dataset.spray=amount.toFixed(2)
 })
