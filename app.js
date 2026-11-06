@@ -45,7 +45,7 @@ for(let j=0;j<3;j++){const pts=[];for(let i=0;i<90;i++){const q=i/89,a=q*Math.PI
 s.update(({p,time,dt,mobile,activeMotion})=>{
  currentTime=time;cameraAt(camera,p,shots,mobile)
  const uncap=span(p,.035,.16)
- cap.position.set(uncap*1.58,mix(3.35,.05,uncap)+Math.sin(uncap*Math.PI)*.55,uncap*.5);cap.rotation.z=-uncap*Math.PI/2;cap.rotation.x=0;product.rotation.y=-.12
+ cap.position.set(uncap*1.2,mix(3.35,.16,uncap)+Math.sin(uncap*Math.PI)*.42,uncap*.52);cap.rotation.z=-uncap*Math.PI/2;cap.rotation.x=0;product.rotation.y=-.12
  const event=Math.max(0,1-(time-sprayAt)/3);burst=activeMotion?mix(burst,event,1-Math.exp(-dt*14)):event
  const unfurl=span(p,.5,.84)
  petals.forEach((o,i)=>{
