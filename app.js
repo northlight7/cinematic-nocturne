@@ -40,13 +40,20 @@ const petalRay=new T.Raycaster(),petalMouse=new T.Vector2();let hoverPetal=-1
 petalInstances.forEach((im,i)=>im.userData.petalMaterial=i)
 s.canvas.addEventListener('pointermove',e=>{petalMouse.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);petalRay.setFromCamera(petalMouse,camera);const h=petalRay.intersectObjects(petalInstances,false)[0];hoverPetal=h?h.instanceId*4+h.object.userData.petalMaterial:-1;s.host.dataset.hoverPetal=String(hoverPetal);s.wake()})
 s.canvas.addEventListener('pointerleave',()=>{hoverPetal=-1;s.host.dataset.hoverPetal='-1';s.wake()})
+// Scent rising from the open bottle: slow, sparse, only while the bloom is open.
+ const scentTex=texture((c,w,h)=>{const g=c.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);g.addColorStop(0,'#ffe9c6');g.addColorStop(.5,'#e6c79a99');g.addColorStop(1,'#e6c79a00');c.fillStyle=g;c.fillRect(0,0,w,h)},64,64)
+ const SC=150,scentPos=new Float32Array(SC*3),scentSeed=[];for(let i=0;i<SC;i++)scentSeed.push({a:Math.random()*6.28,r:.45+Math.random()*1.5,y:Math.random(),s:.1+Math.random()*.2})
+ const scentGeo=new T.BufferGeometry();scentGeo.setAttribute('position',new T.BufferAttribute(scentPos,3))
+ const scentMat=new T.PointsMaterial({size:.095,map:scentTex,transparent:true,depthWrite:false,opacity:0,color:'#efd3a6'})
+ const scentPts=new T.Points(scentGeo,scentMat);scene.add(scentPts)
 const scentLines=[]
 for(let j=0;j<3;j++){const pts=[];for(let i=0;i<90;i++){const q=i/89,a=q*Math.PI*3.8+j*.12;pts.push(new T.Vector3(Math.sin(a)*(1.5+j*.05),.15+q*3.8,Math.cos(a)*.95-.1))}const geo=new T.BufferGeometry().setFromPoints(pts),m=new T.LineBasicMaterial({color:'#d6a979',transparent:true,opacity:0});const line=new T.Line(geo,m);scene.add(line);scentLines.push(line)}
 s.update(({p,time,dt,mobile,activeMotion})=>{
  currentTime=time;cameraAt(camera,p,shots,mobile)
  const uncap=span(p,.035,.16)
  cap.position.set(uncap*1.2,mix(3.35,.16,uncap)+Math.sin(uncap*Math.PI)*.42,uncap*.52);cap.rotation.z=-uncap*Math.PI/2;cap.rotation.x=0;product.rotation.y=-.12
- const event=Math.max(0,1-(time-sprayAt)/3);burst=activeMotion?mix(burst,event,1-Math.exp(-dt*14)):event
+ scentSeed.forEach((q,i)=>{const y=(q.y+time*q.s)%1,a=q.a+time*.22;scentPos[i*3]=Math.cos(a)*q.r*(1+y*.35);scentPos[i*3+1]=.2+y*3.7;scentPos[i*3+2]=Math.sin(a)*q.r*.62-.1});scentGeo.attributes.position.needsUpdate=true;scentMat.opacity=(activeMotion?1:0)*span(p,.55,.92)*.7;
+const event=Math.max(0,1-(time-sprayAt)/3);burst=activeMotion?mix(burst,event,1-Math.exp(-dt*14)):event
  const unfurl=span(p,.5,.84)
  petals.forEach((o,i)=>{
   const layer=Math.floor(i/7),a=(i%7)/7*Math.PI*2+layer*.47,open=.2+.8*span(p,.09+layer*.018,.3+layer*.018),r=(.55+layer*.18)*open

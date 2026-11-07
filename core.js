@@ -33,7 +33,10 @@ export function cameraAt(camera,p,shots,mobile=false,pointer={x:0,y:0}){
 export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow=true,staticProgress=0,narrowFov=42,narrowFrameOffset=0}){
  const host=document.querySelector('.stage'),story=document.querySelector('.story'),canvas=document.querySelector('#world')
  let renderer
- try{renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'})}catch(error){document.body.classList.add('no-webgl');document.querySelector('.render-status').textContent='Static view · 3D unavailable';throw error}
+ const statusEl=()=>document.querySelector('.render-status')
+ let rendererError=null
+ for(let attempt=0;attempt<2&&!renderer;attempt++){try{renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'})}catch(error){rendererError=error}}
+ if(!renderer){document.body.classList.add('no-webgl');if(statusEl())statusEl().textContent='Static view · 3D unavailable';throw rendererError}
  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<700?1.25:1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=exposure
  renderer.shadowMap.enabled=shadow;renderer.shadowMap.type=T.PCFShadowMap
  const scene=new T.Scene();renderer.setClearColor(background,0)
@@ -66,7 +69,7 @@ export function createStage({background='#eae5d9',floor=true,exposure=1.1,shadow
  const motionChange=()=>{reducedMotion=reduced.matches;document.body.classList.toggle('motion-off',reducedMotion||paused);start()};reduced.addEventListener('change',motionChange)
  const motionClick=()=>{if(reducedMotion){reducedMotion=false;paused=false}else paused=!paused;document.body.classList.toggle('motion-off',reducedMotion||paused);motion.setAttribute('aria-pressed',String(paused));motion.textContent=paused?'Resume motion':'Pause motion';start()};motion?.addEventListener('click',motionClick)
  window.addEventListener('pointermove',move,{passive:true});document.addEventListener('pointerleave',leave);window.addEventListener('scroll',scroll,{passive:true});window.addEventListener('resize',(()=>{let t=0;return()=>{if(t)return;t=requestAnimationFrame(()=>{t=0;resize()})}}()));document.addEventListener('visibilitychange',onVisibility)
- canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();contextLost=true;document.body.classList.add('no-webgl');document.querySelector('.render-status').textContent='3D paused · reload to restore'});canvas.addEventListener('webglcontextrestored',()=>location.reload())
+ canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();contextLost=true;document.body.classList.add('no-webgl');if(statusEl())statusEl().textContent='3D paused · reload to restore'});canvas.addEventListener('webglcontextrestored',()=>location.reload())
  const cleanup=()=>{cancelAnimationFrame(raf);window.removeEventListener('pointermove',move);window.removeEventListener('scroll',scroll);window.removeEventListener('resize',resize);document.removeEventListener('pointerleave',leave);document.removeEventListener('visibilitychange',onVisibility);reduced.removeEventListener('change',motionChange);motion?.removeEventListener('click',motionClick);const gs=new Set(),ms=new Set(),ts=new Set();scene.traverse(o=>{if(o.geometry)gs.add(o.geometry);if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ms.add(m);Object.values(m).forEach(v=>{if(v?.isTexture)ts.add(v)})})});gs.forEach(g=>g.dispose());ms.forEach(m=>m.dispose());ts.forEach(t=>t.dispose());env.dispose();renderer.dispose()};const onPageHide=e=>{if(e.persisted){cancelAnimationFrame(raf);raf=0;last=0}else cleanup()};const onPageShow=()=>{last=0;scroll();p=targetP;start()};window.addEventListener('pagehide',onPageHide);window.addEventListener('pageshow',onPageShow)
  document.body.classList.add('scene-ready');document.querySelector('.render-status').textContent='Live 3D · scroll to explore';scroll()
  return{scene,camera,renderer,key,fill,ground,canvas,host,pointer,update(fn){renderStep=fn;start()},wake:start,paused:()=>paused||reducedMotion}
@@ -75,5 +78,5 @@ export function initUI(){
  const dialog=document.querySelector('dialog');document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>dialog?.showModal()));document.querySelector('[data-close]')?.addEventListener('click',()=>dialog.close());dialog?.addEventListener('click',e=>{if(e.target===dialog)dialog.close()})
  document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{document.querySelector('.nav-links')?.classList.remove('open');document.querySelector('[data-menu]')?.setAttribute('aria-expanded','false')}))
  document.querySelector('[data-menu]')?.addEventListener('click',e=>{const open=document.querySelector('.nav-links').classList.toggle('open');e.currentTarget.setAttribute('aria-expanded',String(open))})
- const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('revealed')}),{threshold:.15});document.querySelectorAll('.reveal').forEach(el=>obs.observe(el))
+ document.querySelectorAll('.reveal').forEach(el=>{const r=el.getBoundingClientRect();if(r.top>innerHeight*.92)el.classList.add('pre')});const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('revealed')}),{threshold:.15});document.querySelectorAll('.reveal').forEach(el=>obs.observe(el))
 }
