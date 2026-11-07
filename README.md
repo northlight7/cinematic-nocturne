@@ -26,4 +26,4 @@ Then open http://localhost:8080 in your browser. Fonts, dependencies and all vis
 
 ## About this work
 
-Created through AI-assisted design and development, iterative art direction and browser testing. This is fictional concept work, with no client affiliation or commercial results claimed.
+Designed and built by northlight7. This is fictional concept work, with no client affiliation or commercial results claimed.
